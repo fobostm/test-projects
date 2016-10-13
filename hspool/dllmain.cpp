@@ -1,6 +1,11 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "stdafx.h"
 #include "include\mhook\mhook.h"
+#include "Xpsobjectmodel.h"
+#include "XpsObjectModel_1.h"
+#include "Documenttarget.h"
+#include "XpsPrint.h"
+#include "string"
 
 
 typedef BOOL(WINAPI *PNT_AddJob)
@@ -68,6 +73,60 @@ typedef BOOL(WINAPI* PNT_ReadPrinter)
 	_Out_ LPDWORD pNoBytesRead
 );
 
+typedef HRESULT(WINAPI *PNT_CoCreateInstance)
+(
+	__in           	REFCLSID		rclsid,
+	__in            LPUNKNOWN		pUnkOuter,
+	__in            DWORD			dwClsContext,
+	__in            REFIID			riid,
+	__out			LPVOID* ppv
+);
+
+typedef HRESULT(WINAPI *PNT_CoCreateInstanceEx)
+(
+	_In_    REFCLSID     rclsid,
+	_In_    IUnknown     *punkOuter,
+	_In_    DWORD        dwClsCtx,
+	_In_    COSERVERINFO *pServerInfo,
+	_In_    DWORD        dwCount,
+	_Inout_ MULTI_QI     *pResults
+);
+
+typedef HRESULT(WINAPI *PNT_CoGetClassObject)
+(
+	_In_     REFCLSID     rclsid,
+	_In_     DWORD        dwClsContext,
+	_In_opt_ COSERVERINFO *pServerInfo,
+	_In_     REFIID       riid,
+	_Out_    LPVOID       *ppv
+);
+
+typedef BOOL(WINAPI *PNT_OpenPrinterW)
+(
+	_In_  LPTSTR             pPrinterName,
+	_Out_ LPHANDLE           phPrinter,
+	_In_  LPPRINTER_DEFAULTS pDefault
+);
+
+typedef BOOL(WINAPI *PNT_OpenPrinter2W)
+(
+	_In_  LPCTSTR            pPrinterName,
+	_Out_ LPHANDLE           phPrinter,
+	_In_  LPPRINTER_DEFAULTS pDefault,
+	_In_  PPRINTER_OPTIONS   pOptions
+);
+
+typedef BOOL(WINAPI *PNT_EnumPrintersW)
+(
+	_In_  DWORD   Flags,
+	_In_  LPTSTR  Name,
+	_In_  DWORD   Level,
+	_Out_ LPBYTE  pPrinterEnum,
+	_In_  DWORD   cbBuf,
+	_Out_ LPDWORD pcbNeeded,
+	_Out_ LPDWORD pcReturned
+);
+
 PNT_AddJob OriginalAddJobA = nullptr;
 PNT_AddJob OriginalAddJobW = nullptr;
 PNT_ScheduleJob OriginalScheduleJob = nullptr;
@@ -79,7 +138,13 @@ PNT_GetSpoolFileHandle OriginalGetSpoolFileHandle = nullptr;
 PNT_StartPagePrinter OriginalStartPagePrinter = nullptr;
 PNT_EndPagePrinter OriginalEndPagePrinter = nullptr;
 PNT_EndDocPrinter OriginalEndDocPrinter = nullptr;
-PNT_ReadPrinter OrirginalReadPrinter = nullptr;
+PNT_ReadPrinter OriginalReadPrinter = nullptr;
+PNT_CoCreateInstance OriginalCoCreateInstance = nullptr;
+PNT_CoCreateInstanceEx OriginalCoCreateInstanceEx = nullptr;
+PNT_CoGetClassObject OriginalCoGetClassObject = nullptr;
+PNT_OpenPrinterW OriginalOpenPrinterW = nullptr;
+PNT_OpenPrinter2W OriginalOpenPrinter2W = nullptr;
+PNT_EnumPrintersW OriginalEnumPrintersW = nullptr;
 
 BOOL WINAPI HookedAddJobA
 (
@@ -278,7 +343,200 @@ BOOL WINAPI HookedReadPrinter
 {
 	if (OriginalEndDocPrinter)
 	{
-		auto res = OrirginalReadPrinter(hPrinter, pBuf, cbBuf, pNoBytesRead);
+		auto res = OriginalReadPrinter(hPrinter, pBuf, cbBuf, pNoBytesRead);
+		return res;
+	}
+
+	return FALSE;
+}
+
+HRESULT WINAPI HookedCoCreateInstance
+(
+	__in           	REFCLSID		rclsid,
+	__in            LPUNKNOWN		pUnkOuter,
+	__in            DWORD			dwClsContext,
+	__in            REFIID			riid,
+	__out			LPVOID* ppv
+	)
+{
+	if (OriginalCoCreateInstance)
+	{
+		if (
+			IsEqualCLSID(rclsid, __uuidof(XpsOMObjectFactory)) ||
+			IsEqualIID(riid, IID_IXpsOMObjectFactory) ||
+			IsEqualIID(riid, IID_IXpsOMObjectFactory1) ||
+			IsEqualIID(riid, IID_IXpsDocumentPackageTarget) || 
+			IsEqualIID(riid, IID_IXpsOMDocument) || 
+			IsEqualIID(riid, IID_IXpsOMPage) || 
+			IsEqualIID(riid, IID_IXpsPrintJobStream) ||
+			IsEqualIID(riid, IID_IXpsPrintJob) /*|| 
+			IsEqualIID(riid, IID_IPrintDocumentPackageTargetFactory) ||
+			IsEqualIID(riid, IID_IPrintDocumentPackageTarget)*/
+			)
+
+		{
+			int i = 0;
+			++i;
+		}
+		auto res = OriginalCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
+		return res;
+	}
+
+	return 0;
+}
+
+HRESULT WINAPI HookedCoCreateInstanceEx
+(
+	_In_    REFCLSID     rclsid,
+	_In_    IUnknown     *punkOuter,
+	_In_    DWORD        dwClsCtx,
+	_In_    COSERVERINFO *pServerInfo,
+	_In_    DWORD        dwCount,
+	_Inout_ MULTI_QI     *pResults
+)
+{
+	if (OriginalCoCreateInstanceEx)
+	{
+		//if (IsEqualIID(riid, IID_IXpsOMObjectFactory) ||
+		//	IsEqualIID(riid, IID_IXpsOMObjectFactory1) ||
+		//	IsEqualIID(riid, IID_IXpsDocumentPackageTarget) ||
+		//	IsEqualIID(riid, IID_IXpsOMDocument) ||
+		//	IsEqualIID(riid, IID_IXpsOMPage) ||
+		//	IsEqualIID(riid, IID_IXpsPrintJobStream) ||
+		//	IsEqualIID(riid, IID_IXpsPrintJob) /*||
+		//									   IsEqualIID(riid, IID_IPrintDocumentPackageTargetFactory) ||
+		//									   IsEqualIID(riid, IID_IPrintDocumentPackageTarget)*/
+		//	)
+
+		//{
+		//	int i = 0;
+		//	++i;
+		//}
+		auto res = OriginalCoCreateInstanceEx(rclsid, punkOuter, dwClsCtx, pServerInfo, dwCount, pResults);
+		return res;
+	}
+
+	return 0;
+}
+
+HRESULT WINAPI HookedCoGetClassObject
+(
+	_In_     REFCLSID     rclsid,
+	_In_     DWORD        dwClsContext,
+	_In_opt_ COSERVERINFO *pServerInfo,
+	_In_     REFIID       riid,
+	_Out_    LPVOID       *ppv
+)
+{
+	if (OriginalCoGetClassObject)
+	{
+		if (IsEqualIID(riid, IID_IXpsOMObjectFactory) ||
+			IsEqualIID(riid, IID_IXpsOMObjectFactory1) ||
+			IsEqualIID(riid, IID_IXpsDocumentPackageTarget) ||
+			IsEqualIID(riid, IID_IXpsOMDocument) ||
+			IsEqualIID(riid, IID_IXpsOMPage) ||
+			IsEqualIID(riid, IID_IXpsPrintJobStream) ||
+			IsEqualIID(riid, IID_IXpsPrintJob) /*||
+											   IsEqualIID(riid, IID_IPrintDocumentPackageTargetFactory) ||
+											   IsEqualIID(riid, IID_IPrintDocumentPackageTarget)*/
+			)
+
+		{
+			int i = 0;
+			++i;
+		}
+		auto res = OriginalCoGetClassObject(rclsid, dwClsContext, pServerInfo, riid, ppv);
+		return res;
+	}
+
+	return 0;
+}
+
+BOOL WINAPI HookedOpenPrinterW
+(
+	_In_  LPTSTR             pPrinterName,
+	_Out_ LPHANDLE           phPrinter,
+	_In_  LPPRINTER_DEFAULTS pDefault
+)
+{
+	if (OriginalOpenPrinterW)
+	{
+		//std::wstring str = L"Microsoft XPS Document Writer";
+		//LPWSTR temp = pPrinterName;
+		//std::wstring in_str(pPrinterName);
+		//auto find_res = in_str.find_first_of(L',');
+		//if (find_res != std::wstring::npos)
+		//{
+		//	str += in_str.substr(find_res);
+		//}
+		//pPrinterName = const_cast<LPWSTR>(str.c_str());
+		auto res = OriginalOpenPrinterW(pPrinterName, phPrinter, pDefault);
+		//pPrinterName = temp;
+		return res;
+	}
+
+	return FALSE;
+}
+
+BOOL WINAPI HookedOpenPrinter2W
+(
+	_In_  LPCTSTR            pPrinterName,
+	_Out_ LPHANDLE           phPrinter,
+	_In_  LPPRINTER_DEFAULTS pDefault,
+	_In_  PPRINTER_OPTIONS   pOptions
+	)
+{
+	if (OriginalOpenPrinter2W)
+	{
+		auto res = OriginalOpenPrinter2W(pPrinterName, phPrinter, pDefault, pOptions);
+		return res;
+	}
+
+	return FALSE;
+}
+
+BOOL WINAPI HookedEnumPrintersW
+(
+	_In_  DWORD   Flags,
+	_In_  LPTSTR  Name,
+	_In_  DWORD   Level,
+	_Out_ LPBYTE  pPrinterEnum,
+	_In_  DWORD   cbBuf,
+	_Out_ LPDWORD pcbNeeded,
+	_Out_ LPDWORD pcReturned
+)
+{
+	if (OriginalEnumPrintersW)
+	{
+		std::wstring printer = L"XPSDrv Sample Driver";
+		DWORD info_size = sizeof(PRINTER_INFO_4);
+		DWORD str_size = (printer.length()+1) * sizeof(WCHAR);
+		DWORD buf_size = info_size + str_size;
+		LPBYTE buf = new BYTE[buf_size];
+		ZeroMemory(buf, buf_size);
+		memcpy_s(buf + info_size, str_size, printer.c_str(), str_size);
+		reinterpret_cast<PRINTER_INFO_4*>(buf)->pPrinterName = reinterpret_cast<PWSTR>(buf + info_size);
+		reinterpret_cast<PRINTER_INFO_4*>(buf)->Attributes = 576;
+		if (cbBuf == 0)
+		{
+			*pcbNeeded = buf_size;
+			*pcReturned = 0;
+			delete[] buf;
+			return FALSE;
+		}
+		else
+		{
+			*pcbNeeded = buf_size;
+			memcpy_s(pPrinterEnum, buf_size, buf, buf_size);
+			reinterpret_cast<PRINTER_INFO_4*>(pPrinterEnum)->pPrinterName = reinterpret_cast<PWSTR>(pPrinterEnum + info_size);
+			*pcReturned = 1;
+
+			delete[] buf;
+			return TRUE;
+		}
+
+		delete[] buf;
+		auto res = OriginalEnumPrintersW(Flags, Name, Level, pPrinterEnum, cbBuf, pcbNeeded, pcReturned);
 		return res;
 	}
 
@@ -293,6 +551,13 @@ void GetFunctions()
 	{
 		hspool = LoadLibrary(L"winspool.drv");
 	}
+
+	//HMODULE hspool = ::GetModuleHandle(L"spoolss.dll");
+
+	//if (!hspool)
+	//{
+	//	hspool = LoadLibrary(L"spoolss.dll");
+	//}
 
 	if (hspool)
 	{
@@ -362,10 +627,56 @@ void GetFunctions()
 			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalEndDocPrinter), HookedEndDocPrinter);
 		}
 
-		OrirginalReadPrinter = reinterpret_cast<PNT_ReadPrinter>(GetProcAddress(hspool, "ReadPrinter"));
-		if (OrirginalReadPrinter)
+		OriginalReadPrinter = reinterpret_cast<PNT_ReadPrinter>(GetProcAddress(hspool, "ReadPrinter"));
+		if (OriginalReadPrinter)
 		{
-			Mhook_SetHook(reinterpret_cast<PVOID*>(&OrirginalReadPrinter), HookedReadPrinter);
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalReadPrinter), HookedReadPrinter);
+		}
+
+		OriginalOpenPrinterW = reinterpret_cast<PNT_OpenPrinterW>(GetProcAddress(hspool, "OpenPrinterW"));
+		if (OriginalOpenPrinterW)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalOpenPrinterW), HookedOpenPrinterW);
+		}
+
+		OriginalOpenPrinter2W = reinterpret_cast<PNT_OpenPrinter2W>(GetProcAddress(hspool, "OpenPrinter2W"));
+		if (OriginalOpenPrinter2W)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalOpenPrinter2W), HookedOpenPrinter2W);
+		}
+
+		OriginalEnumPrintersW = reinterpret_cast<PNT_EnumPrintersW>(GetProcAddress(hspool, "EnumPrintersW"));
+		if (OriginalEnumPrintersW)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalEnumPrintersW), HookedEnumPrintersW);
+		}
+	}
+
+	HMODULE hModuleOle32 = ::GetModuleHandle(L"Ole32.dll");
+
+	if (hModuleOle32 == NULL)
+	{
+		hModuleOle32 = ::GetModuleHandle(L"combase.dll");
+	}
+
+	if (hModuleOle32)
+	{
+		OriginalCoCreateInstance = reinterpret_cast<PNT_CoCreateInstance>(GetProcAddress(hModuleOle32, "CoCreateInstance"));
+		if (OriginalCoCreateInstance)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalCoCreateInstance), HookedCoCreateInstance);
+		}
+
+		OriginalCoCreateInstanceEx = reinterpret_cast<PNT_CoCreateInstanceEx>(GetProcAddress(hModuleOle32, "CoCreateInstanceEx"));
+		if (OriginalCoCreateInstanceEx)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalCoCreateInstanceEx), HookedCoCreateInstanceEx);
+		}
+
+		OriginalCoGetClassObject = reinterpret_cast<PNT_CoGetClassObject>(GetProcAddress(hModuleOle32, "CoGetClassObject"));
+		if (OriginalCoGetClassObject)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalCoGetClassObject), HookedCoGetClassObject);
 		}
 	}
 }
