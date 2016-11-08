@@ -15,6 +15,11 @@ typedef NTSTATUS (WINAPI *PNT_LdrLoadDll)
 	PWCHAR, PULONG, PUNICODE_STRING, PHANDLE
 );
 
+typedef NTSTATUS(WINAPI *PNT_LdrUnloadDll)
+(
+	HANDLE
+);
+
 typedef HRESULT (WINAPI *PNT_DllGetClassObject)
 (
 	_In_  REFCLSID rclsid,
@@ -24,139 +29,8 @@ typedef HRESULT (WINAPI *PNT_DllGetClassObject)
 
 
 PNT_LdrLoadDll OriginalLdrLoadDll = nullptr;
+PNT_LdrUnloadDll OriginalLdrUnloadDll = nullptr;
 PNT_DllGetClassObject OriginalDllGetClassObject = nullptr;
-
-class XpsOMPackageWriterProxy : public IXpsOMPackageWriter
-{
-public:
-	XpsOMPackageWriterProxy() : p_xpspackagewriter(nullptr)
-	{
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE QueryInterface(
-		/* [in] */ REFIID riid,
-		/* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->QueryInterface(riid, ppvObject);
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual ULONG STDMETHODCALLTYPE AddRef(void)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->AddRef();
-			//p_myxpspackagewriter->AddRef();
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual ULONG STDMETHODCALLTYPE Release(void)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->Release();
-			//p_myxpspackagewriter->Release();
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE StartNewDocument(
-		/* [in] */ __RPC__in_opt IOpcPartUri *documentPartName,
-		/* [in] */ __RPC__in_opt IXpsOMPrintTicketResource *documentPrintTicket,
-		/* [in] */ __RPC__in_opt IXpsOMDocumentStructureResource *documentStructure,
-		/* [in] */ __RPC__in_opt IXpsOMSignatureBlockResourceCollection *signatureBlockResources,
-		/* [in] */ __RPC__in_opt IXpsOMPartUriCollection *restrictedFonts)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->StartNewDocument(documentPartName, documentPrintTicket, documentStructure, signatureBlockResources, restrictedFonts);
-			//p_myxpspackagewriter->StartNewDocument(documentPartName, documentPrintTicket, documentStructure, signatureBlockResources, restrictedFonts);
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE AddPage(
-		/* [in] */ __RPC__in_opt IXpsOMPage *page,
-		/* [in] */ __RPC__in const XPS_SIZE *advisoryPageDimensions,
-		/* [in] */ __RPC__in_opt IXpsOMPartUriCollection *discardableResourceParts,
-		/* [in] */ __RPC__in_opt IXpsOMStoryFragmentsResource *storyFragments,
-		/* [in] */ __RPC__in_opt IXpsOMPrintTicketResource *pagePrintTicket,
-		/* [in] */ __RPC__in_opt IXpsOMImageResource *pageThumbnail)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->AddPage(page, advisoryPageDimensions, discardableResourceParts, storyFragments, pagePrintTicket, pageThumbnail);
-			//p_myxpspackagewriter->AddPage(page, advisoryPageDimensions, discardableResourceParts, storyFragments, pagePrintTicket, pageThumbnail);
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE AddResource(
-		/* [in] */ __RPC__in_opt IXpsOMResource *resource)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->AddResource(resource);
-			//p_myxpspackagewriter->AddResource(resource);
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE Close(void)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->Close();
-			//p_myxpspackagewriter->Close();
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	virtual HRESULT STDMETHODCALLTYPE IsClosed(
-		/* [retval][out] */ __RPC__out BOOL *isClosed)
-	{
-		if (p_xpspackagewriter)
-		{
-			auto res = p_xpspackagewriter->IsClosed(isClosed);
-			//p_myxpspackagewriter->IsClosed(isClosed);
-			return res;
-		}
-
-		return S_FALSE;
-	}
-
-	void SetXpsPackageWriter(IXpsOMPackageWriter* xpspackagewriter)
-	{
-		p_xpspackagewriter = xpspackagewriter;
-	}
-	//void SetXpsMyPackageWriter(IXpsOMPackageWriter* xpspackagewriter)
-	//{
-	//	p_myxpspackagewriter = xpspackagewriter;
-	//}
-private:
-	IXpsOMPackageWriter* p_xpspackagewriter;
-	//IXpsOMPackageWriter* p_myxpspackagewriter;
-};
-
-XpsOMPackageWriterProxy g_xpspackagewriter;
 
 class XpsOMObjectFactoryProxy : public IXpsOMObjectFactory
 {
@@ -671,7 +545,7 @@ public:
 		if (p_factory)
 		{
 			auto res = p_factory->CreatePackageWriterOnFile(fileName, securityAttributes, flagsAndAttributes, optimizeMarkupSize, interleaving, documentSequencePartName,
-															coreProperties, packageThumbnail, documentSequencePrintTicket, discardControlPartName, packageWriter);
+				coreProperties, packageThumbnail, documentSequencePrintTicket, discardControlPartName, packageWriter);
 			return res;
 		}
 
@@ -692,7 +566,7 @@ public:
 		if (p_factory)
 		{
 			auto res = p_factory->CreatePackageWriterOnStream(outputStream, optimizeMarkupSize, interleaving, documentSequencePartName, coreProperties, packageThumbnail,
-																documentSequencePrintTicket, discardControlPartName, packageWriter);
+				documentSequencePrintTicket, discardControlPartName, packageWriter);
 			return res;
 		}
 
@@ -734,6 +608,144 @@ private:
 };
 
 XpsOMObjectFactoryProxy g_xpsfactory;
+
+class XpsOMPackageWriterProxy : public IXpsOMPackageWriter
+{
+public:
+	XpsOMPackageWriterProxy() : p_xpspackagewriter(nullptr)
+	{
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE QueryInterface(
+		/* [in] */ REFIID riid,
+		/* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->QueryInterface(riid, ppvObject);
+			p_myxpspackagewriter->QueryInterface(riid, ppvObject);
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual ULONG STDMETHODCALLTYPE AddRef(void)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->AddRef();
+			p_myxpspackagewriter->AddRef();
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual ULONG STDMETHODCALLTYPE Release(void)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->Release();
+			p_myxpspackagewriter->Release();
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE StartNewDocument(
+		/* [in] */ __RPC__in_opt IOpcPartUri *documentPartName,
+		/* [in] */ __RPC__in_opt IXpsOMPrintTicketResource *documentPrintTicket,
+		/* [in] */ __RPC__in_opt IXpsOMDocumentStructureResource *documentStructure,
+		/* [in] */ __RPC__in_opt IXpsOMSignatureBlockResourceCollection *signatureBlockResources,
+		/* [in] */ __RPC__in_opt IXpsOMPartUriCollection *restrictedFonts)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->StartNewDocument(documentPartName, documentPrintTicket, documentStructure, signatureBlockResources, restrictedFonts);
+			p_myxpspackagewriter->StartNewDocument(documentPartName, documentPrintTicket, documentStructure, signatureBlockResources, restrictedFonts);
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE AddPage(
+		/* [in] */ __RPC__in_opt IXpsOMPage *page,
+		/* [in] */ __RPC__in const XPS_SIZE *advisoryPageDimensions,
+		/* [in] */ __RPC__in_opt IXpsOMPartUriCollection *discardableResourceParts,
+		/* [in] */ __RPC__in_opt IXpsOMStoryFragmentsResource *storyFragments,
+		/* [in] */ __RPC__in_opt IXpsOMPrintTicketResource *pagePrintTicket,
+		/* [in] */ __RPC__in_opt IXpsOMImageResource *pageThumbnail)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->AddPage(page, advisoryPageDimensions, discardableResourceParts, storyFragments, pagePrintTicket, pageThumbnail);
+			p_myxpspackagewriter->AddPage(page, advisoryPageDimensions, discardableResourceParts, storyFragments, pagePrintTicket, pageThumbnail);
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE AddResource(
+		/* [in] */ __RPC__in_opt IXpsOMResource *resource)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->AddResource(resource);
+			//p_myxpspackagewriter->AddResource(resource);
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE Close(void)
+	{
+		if (p_xpspackagewriter)
+		{
+			//IXpsOMPackage* package = nullptr;
+			//g_xpsfactory.CreatePackage(&package);
+			//package->WriteToFile(L"D:\\testxps.xps", NULL, FILE_ATTRIBUTE_NORMAL, FALSE);
+			//package->Release();
+
+			auto res = p_xpspackagewriter->Close();
+			p_myxpspackagewriter->Close();
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	virtual HRESULT STDMETHODCALLTYPE IsClosed(
+		/* [retval][out] */ __RPC__out BOOL *isClosed)
+	{
+		if (p_xpspackagewriter)
+		{
+			auto res = p_xpspackagewriter->IsClosed(isClosed);
+			//p_myxpspackagewriter->IsClosed(isClosed);
+			return res;
+		}
+
+		return S_FALSE;
+	}
+
+	void SetXpsPackageWriter(IXpsOMPackageWriter* xpspackagewriter)
+	{
+		p_xpspackagewriter = xpspackagewriter;
+	}
+	void SetXpsMyPackageWriter(IXpsOMPackageWriter* xpspackagewriter)
+	{
+		p_myxpspackagewriter = xpspackagewriter;
+	}
+private:
+	IXpsOMPackageWriter* p_xpspackagewriter;
+	IXpsOMPackageWriter* p_myxpspackagewriter;
+};
+
+XpsOMPackageWriterProxy g_xpspackagewriter;
 
 class XpsDPT : public IXpsDocumentPackageTarget
 {
@@ -786,21 +798,21 @@ public:
 		{
 			auto res = p_xpsdpt->GetXpsOMPackageWriter(documentSequencePartName, discardControlPartName, packageWriter);
 						
-			//IXpsOMPackageWriter* mypackageWriter = NULL;
-			//g_xpsfactory.CreatePackageWriterOnFile(L"D:\\testxps.xps",
-			//	NULL,
-			//	FILE_ATTRIBUTE_NORMAL,
-			//	FALSE,
-			//	XPS_INTERLEAVING_OFF,
-			//	documentSequencePartName,
-			//	NULL,
-			//	NULL,
-			//	NULL,
-			//	discardControlPartName,
-			//	&mypackageWriter);
+			IXpsOMPackageWriter* mypackageWriter = NULL;
+			g_xpsfactory.CreatePackageWriterOnFile(L"D:\\testxps.xps",
+				NULL,
+				FILE_ATTRIBUTE_NORMAL,
+				FALSE,
+				XPS_INTERLEAVING_OFF,
+				documentSequencePartName,
+				NULL,
+				NULL,
+				NULL,
+				discardControlPartName,
+				&mypackageWriter);
 
 			g_xpspackagewriter.SetXpsPackageWriter(*packageWriter);
-			//g_xpspackagewriter.SetXpsMyPackageWriter(mypackageWriter);
+			g_xpspackagewriter.SetXpsMyPackageWriter(mypackageWriter);
 			*packageWriter = &g_xpspackagewriter;
 
 			return res;
@@ -1263,6 +1275,23 @@ NTSTATUS WINAPI HookedLdrLoadDll
 	return NULL;
 }
 
+NTSTATUS WINAPI HookedLdrUnloadDll
+(
+	HANDLE ModuleHandle
+)
+{
+	if (OriginalLdrLoadDll)
+	{
+		//auto res = OriginalLdrUnloadDll(ModuleHandle);
+
+		auto res = S_OK;
+		return res;
+	}
+
+	return NULL;
+}
+
+
 void GetFunctions()
 {
 	HMODULE hspool = ::GetModuleHandle(L"ntdll");
@@ -1274,7 +1303,23 @@ void GetFunctions()
 		{
 			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalLdrLoadDll), HookedLdrLoadDll);
 		}
+
+		OriginalLdrUnloadDll = reinterpret_cast<PNT_LdrUnloadDll>(GetProcAddress(hspool, "LdrUnloadDll"));
+		if (OriginalLdrUnloadDll)
+		{
+			Mhook_SetHook(reinterpret_cast<PVOID*>(&OriginalLdrUnloadDll), HookedLdrUnloadDll);
+		}
 	}
+}
+
+
+LRESULT GetMsgProc(
+	_In_ int    code,
+	_In_ WPARAM wParam,
+	_In_ LPARAM lParam
+)
+{
+	return CallNextHookEx(NULL, code, wParam, lParam);
 }
 
 
@@ -1286,15 +1331,31 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
+	{
+		//TCHAR name[1024] = { 0 };
+		//DWORD chc = GetModuleFileName(hModule, name, 1024);
+		//LoadLibraryW(name);
+		//HMODULE module;
+		//GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_PIN, name, &module);
+
 		GetFunctions();
 		break;
+	}
 	case DLL_THREAD_ATTACH:
 		break;
 	case DLL_THREAD_DETACH:
 		break;
 	case DLL_PROCESS_DETACH:
-		Mhook_Unhook(reinterpret_cast<PVOID*>(&OriginalLdrLoadDll));
-		OriginalLdrLoadDll = nullptr;
+		if (OriginalLdrLoadDll)
+		{
+			Mhook_Unhook(reinterpret_cast<PVOID*>(&OriginalLdrLoadDll));
+			OriginalLdrLoadDll = nullptr;
+		}
+		if (OriginalDllGetClassObject)
+		{
+			Mhook_Unhook(reinterpret_cast<PVOID*>(&OriginalDllGetClassObject));
+			OriginalDllGetClassObject = nullptr;
+		}
 	}
 	return TRUE;
 }
